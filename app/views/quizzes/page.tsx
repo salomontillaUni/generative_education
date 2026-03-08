@@ -27,43 +27,7 @@ export default function Quizzes() {
         <p className="text-gray-500 text-lg">Pon a prueba tus conocimientos y fortalece tus vías neuronales.</p>
       </div>
 
-      {/* Hero / CTA */}
-      <div className="bg-indigo-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200 flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-          <BrainCircuit className="w-64 h-64" />
-        </div>
-        
-        <div className="relative z-10 max-w-xl">
-          <div className="flex items-center gap-2 text-indigo-200 text-sm font-semibold uppercase tracking-wider mb-3">
-            <TrendingUp className="w-4 h-4" />
-            Desafío Diario
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold leading-tight mb-4">
-            ¿Listo para tu sesión de repaso personalizada?
-          </h2>
-          <p className="text-indigo-100 text-sm sm:text-base mb-6">
-            La IA ha seleccionado 15 preguntas basadas en tu actividad reciente y el algoritmo de repetición espaciada. Concéntrate en tus puntos débiles para maximizar el dominio.
-          </p>
-          <Link 
-            href="/quiz/daily"
-            className="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 px-6 py-3 rounded-xl font-medium transition-all shadow-sm group"
-          >
-            <Play className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
-            Empezar Repaso Diario
-          </Link>
-        </div>
-        
-        <div className="relative z-10 hidden lg:block">
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center min-w-[200px]">
-            <div className="text-4xl font-black mb-1">15</div>
-            <div className="text-indigo-200 text-sm font-medium uppercase tracking-wider">Preguntas</div>
-            <div className="mt-4 pt-4 border-t border-white/10 flex justify-between text-xs">
-              <span className="text-indigo-100"><Clock className="w-3 h-3 inline mr-1"/> ~8 min</span>
-              <span className="text-emerald-300 font-semibold">+12% Dominio</span>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       {/* Quiz List */}
       <div>
@@ -117,7 +81,7 @@ export default function Quizzes() {
               </div>
 
               <Link
-                href={`/quiz/${quiz.id}`}
+                href={`/views/quizzes/${quiz.id}`}
                 className={cn(
                   "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
                   quiz.status === "completed" 
