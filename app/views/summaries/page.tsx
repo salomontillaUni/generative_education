@@ -149,7 +149,7 @@ export function Summaries() {
               if (block.type === "callout") return (
                 <div key={idx} className="my-8 bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 flex gap-4 not-prose">
                   <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                    <block.icon className="w-5 h-5" />
+                    
                   </div>
                   <div>
                     <h4 className="font-semibold text-indigo-900 text-sm uppercase tracking-wider mb-1">{block.title}</h4>
