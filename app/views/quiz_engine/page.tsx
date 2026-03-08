@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   X, 
@@ -10,7 +10,8 @@ import {
   RefreshCcw,
   Sparkles
 } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { cn } from "../../components/ui/utils";
+import Link from 'next/link';
 
 const mockQuizData = {
   title: "Mecánica de la Respiración Celular",
@@ -93,12 +94,12 @@ export function QuizEngine() {
                 <RefreshCcw className="w-4 h-4 text-indigo-600" /> Plan de Acción
               </h3>
               <p className="text-indigo-800/80 text-sm leading-relaxed">Basado en tus respuestas, te recomendamos repasar la sección "Proceso de Glucólisis" en tus notas antes de avanzar.</p>
-              <Link to="/summaries" className="mt-4 bg-white text-indigo-700 font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm hover:bg-indigo-50 transition-colors w-full flex justify-between items-center group border border-indigo-100">
+              <Link href="/views/summaries" className="mt-4 bg-white text-indigo-700 font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm hover:bg-indigo-50 transition-colors w-full flex justify-between items-center group border border-indigo-100">
                 Repasar Conceptos <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </div>
             
-            <Link to="/quizzes" className="flex items-center justify-center w-full bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-colors shadow-md">
+            <Link href="/views/quizzes" className="flex items-center justify-center w-full bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-colors shadow-md">
               Volver al Panel
             </Link>
           </div>
@@ -246,7 +247,7 @@ export function QuizEngine() {
                 {/* Review Concept Button */}
                 {!isCorrect && (
                   <Link 
-                    to="/summaries" 
+                    href="/views/summaries" 
                     className="inline-flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-semibold text-gray-900 shadow-sm border border-red-200/50 hover:bg-gray-50 transition-colors"
                   >
                     <BookOpen className="w-4 h-4 text-indigo-500" /> Repasar Concepto: {question.reference}
