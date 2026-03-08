@@ -1,5 +1,5 @@
+"use client";
 import { motion } from "motion/react";
-import { Link } from "react-router";
 import { 
   BrainCircuit, 
   Play, 
@@ -8,7 +8,8 @@ import {
   TrendingUp,
   AlertCircle
 } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { cn } from "../../components/ui/utils";
+import Link from 'next/link'
 
 const mockQuizzes = [
   { id: 1, title: "Mecánica de la Respiración Celular", status: "recommended", score: null, time: "5 min", questions: 10 },
@@ -16,7 +17,7 @@ const mockQuizzes = [
   { id: 3, title: "Intro a la Mecánica Cuántica", status: "needs_review", score: 45, time: "8 min", questions: 15 },
 ];
 
-export function Quizzes() {
+export default function Quizzes() {
   return (
     <div className="flex flex-col gap-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-full">
       
@@ -44,7 +45,7 @@ export function Quizzes() {
             La IA ha seleccionado 15 preguntas basadas en tu actividad reciente y el algoritmo de repetición espaciada. Concéntrate en tus puntos débiles para maximizar el dominio.
           </p>
           <Link 
-            to="/quiz/daily"
+            href="/quiz/daily"
             className="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 px-6 py-3 rounded-xl font-medium transition-all shadow-sm group"
           >
             <Play className="w-4 h-4 fill-current group-hover:scale-110 transition-transform" />
@@ -116,7 +117,7 @@ export function Quizzes() {
               </div>
 
               <Link
-                to={`/quiz/${quiz.id}`}
+                href={`/quiz/${quiz.id}`}
                 className={cn(
                   "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
                   quiz.status === "completed" 

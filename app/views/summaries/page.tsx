@@ -1,3 +1,4 @@
+"use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
@@ -9,7 +10,7 @@ import {
   List,
   X
 } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { cn } from "../../components/ui/utils";
 
 const mockSummary = {
   title: "Mecánica de la Respiración Celular",
@@ -32,7 +33,7 @@ const mockSummary = {
   ]
 };
 
-export function Summaries() {
+export default function Summaries() {
   const [activePanel, setActivePanel] = useState<"reading" | "chat">("reading");
   const [selectedText, setSelectedText] = useState("");
   const [showTooltip, setShowTooltip] = useState(false);
