@@ -14,6 +14,7 @@ import {
   Settings,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
 import { cn } from "../../components/ui/utils";
 
@@ -27,11 +28,21 @@ const navItems = [
 export function Sidebar({ children }: { children: React.ReactNode }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    handleResize(); // Initialize on mount
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
     <div className="flex h-screen w-full bg-gray-50 text-gray-900 overflow-hidden font-sans selection:bg-indigo-100 selection:text-indigo-900">
@@ -68,18 +79,8 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
       <motion.aside
         initial={false}
         animate={{
-          width:
-            typeof window !== "undefined" && window.innerWidth < 1024
-              ? 260
-              : isCollapsed
-                ? 80
-                : 260,
-          x:
-            typeof window !== "undefined" && window.innerWidth < 1024
-              ? isMobileMenuOpen
-                ? 0
-                : -260
-              : 0,
+          width: isMobile ? 260 : isCollapsed ? 80 : 260,
+          x: isMobile ? (isMobileMenuOpen ? 0 : -260) : 0,
           transition: { type: "spring", bounce: 0, duration: 0.4 },
         }}
         className={cn(
@@ -95,18 +96,8 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             <motion.span
               className="ml-3 font-semibold text-lg whitespace-nowrap overflow-hidden"
               animate={{
-                opacity:
-                  isCollapsed &&
-                  typeof window !== "undefined" &&
-                  window.innerWidth >= 1024
-                    ? 0
-                    : 1,
-                width:
-                  isCollapsed &&
-                  typeof window !== "undefined" &&
-                  window.innerWidth >= 1024
-                    ? 0
-                    : "auto",
+                opacity: isCollapsed && !isMobile ? 0 : 1,
+                width: isCollapsed && !isMobile ? 0 : "auto",
               }}
             >
               AdaptiveAI
@@ -160,18 +151,8 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
                     <motion.span
                       className="ml-3 font-medium whitespace-nowrap overflow-hidden text-sm"
                       animate={{
-                        opacity:
-                          isCollapsed &&
-                          typeof window !== "undefined" &&
-                          window.innerWidth >= 1024
-                            ? 0
-                            : 1,
-                        width:
-                          isCollapsed &&
-                          typeof window !== "undefined" &&
-                          window.innerWidth >= 1024
-                            ? 0
-                            : "auto",
+                        opacity: isCollapsed && !isMobile ? 0 : 1,
+                        width: isCollapsed && !isMobile ? 0 : "auto",
                       }}
                     >
                       {item.label}
@@ -184,28 +165,37 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-4 mt-auto border-t border-gray-100/80 space-y-1">
-          <button className="flex items-center w-full px-3 py-2.5 text-gray-600 hover:bg-gray-100/80 rounded-xl transition-colors">
+          <Link
+            href="/views/settings"
+            className="flex items-center w-full px-3 py-2.5 text-gray-600 hover:bg-gray-100/80 rounded-xl transition-colors"
+          >
             <Settings className="w-5 h-5 min-w-5" />
             <motion.span
               className="ml-3 font-medium whitespace-nowrap overflow-hidden text-sm"
               animate={{
-                opacity:
-                  isCollapsed &&
-                  typeof window !== "undefined" &&
-                  window.innerWidth >= 1024
-                    ? 0
-                    : 1,
-                width:
-                  isCollapsed &&
-                  typeof window !== "undefined" &&
-                  window.innerWidth >= 1024
-                    ? 0
-                    : "auto",
+                opacity: isCollapsed && !isMobile ? 0 : 1,
+                width: isCollapsed && !isMobile ? 0 : "auto",
               }}
             >
               Configuración
             </motion.span>
-          </button>
+          </Link>
+
+          <Link
+            href="/auth/login"
+            className="flex items-center w-full px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+          >
+            <LogOut className="w-5 h-5 min-w-5" />
+            <motion.span
+              className="ml-3 font-medium whitespace-nowrap overflow-hidden text-sm"
+              animate={{
+                opacity: isCollapsed && !isMobile ? 0 : 1,
+                width: isCollapsed && !isMobile ? 0 : "auto",
+              }}
+            >
+              Cerrar sesión
+            </motion.span>
+          </Link>
 
           <div className="flex items-center px-3 py-3 mt-2 rounded-xl bg-gray-50 border border-gray-100">
             <div className="w-8 h-8 rounded-full bg-linear-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center text-xs font-bold min-w-8">
@@ -214,24 +204,13 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             <motion.div
               className="ml-3 overflow-hidden flex-1"
               animate={{
-                opacity:
-                  isCollapsed &&
-                  typeof window !== "undefined" &&
-                  window.innerWidth >= 1024
-                    ? 0
-                    : 1,
-                width:
-                  isCollapsed &&
-                  typeof window !== "undefined" &&
-                  window.innerWidth >= 1024
-                    ? 0
-                    : "auto",
+                opacity: isCollapsed && !isMobile ? 0 : 1,
+                width: isCollapsed && !isMobile ? 0 : "auto",
               }}
             >
               <p className="text-sm font-medium text-gray-900 truncate">
                 Juan Estudiante
               </p>
-              <p className="text-xs text-gray-500 truncate">Plan Pro</p>
             </motion.div>
           </div>
         </div>

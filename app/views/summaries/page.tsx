@@ -1,192 +1,202 @@
 "use client";
 import { useState } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { 
-  BookOpen, 
-  ChevronRight, 
-  Sparkles, 
-  Highlighter, 
-  MessageSquare, 
-  List,
-  X
+import { motion } from "motion/react";
+import Link from "next/link";
+import {
+  BookOpen,
+  Search,
+  Grid,
+  List as ListIcon,
+  Clock,
+  ChevronRight,
+  MoreVertical,
+  Play,
 } from "lucide-react";
 import { cn } from "../../components/ui/utils";
 
-const mockSummary = {
-  title: "Mecánica de la Respiración Celular",
-  content: [
-    { type: "p", text: "La respiración celular es un conjunto de reacciones y procesos metabólicos que tienen lugar en las células de los organismos para convertir la energía bioquímica de los nutrientes en trifosfato de adenosina (ATP) y luego liberar productos de desecho." },
-    { type: "callout", icon: Sparkles, text: "Nota clave: El ATP es la 'moneda energética' de la célula. Piénsalo como una batería recargable.", title: "Nota IA" },
-    { type: "h2", text: "Las Tres Etapas" },
-    { type: "p", text: "Las reacciones implicadas en la respiración son reacciones catabólicas, que rompen moléculas grandes en otras más pequeñas, liberando energía debido a que los enlaces débiles de alta energía, en particular en el oxígeno diatómico, son reemplazados por enlaces más fuertes en los productos." },
-    { type: "list", items: [
-      "Glucólisis: Ocurre en el citoplasma. Rompe la glucosa en dos moléculas de piruvato.",
-      "Ciclo de Krebs (Ciclo del Ácido Cítrico): Ocurre en la matriz mitocondrial. Completa la descomposición de la glucosa.",
-      "Cadena de Transporte de Electrones: Ocurre en la membrana mitocondrial interna. Representa la mayor parte de la síntesis de ATP."
-    ]},
-    { type: "p", text: "La respiración es una de las formas clave en que una célula libera energía química para impulsar la actividad celular. La reacción global ocurre en una serie de pasos bioquímicos, algunos de los cuales son reacciones redox." },
-  ],
-  glossary: [
-    { term: "ATP", definition: "Trifosfato de adenosina, la molécula principal para almacenar y transferir energía en las células." },
-    { term: "Catabólico", definition: "El conjunto de rutas metabólicas que descompone moléculas en unidades más pequeñas que se oxidan para liberar energía." },
-    { term: "Redox", definition: "Reacciones químicas en las que cambian los estados de oxidación de los átomos." },
-  ]
-};
+const mockSummaries = [
+  {
+    id: 1,
+    title: "Mecánica de la Respiración Celular",
+    source: "Respiracion_Celular.pdf",
+    date: "Hace 2 horas",
+    readTime: "5 min",
+    progress: 100,
+  },
+  {
+    id: 2,
+    title: "Orígenes del Imperio Romano",
+    source: "Historia_Roma_Antigua.docx",
+    date: "Ayer",
+    readTime: "8 min",
+    progress: 40,
+  },
+  {
+    id: 3,
+    title: "Principios de la Mecánica Cuántica",
+    source: "Intro_Mecanica_Cuantica.pdf",
+    date: "Hace 3 días",
+    readTime: "12 min",
+    progress: 0,
+  },
+];
 
-export default function Summaries() {
-  const [activePanel, setActivePanel] = useState<"reading" | "chat">("reading");
-  const [selectedText, setSelectedText] = useState("");
-  const [showTooltip, setShowTooltip] = useState(false);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [chatMessages, setChatMessages] = useState([
-    { role: "ai", text: "¡Hola! Estoy listo para ayudarte a entender la 'Mecánica de la Respiración Celular'. Resalta cualquier texto o haz una pregunta aquí." }
-  ]);
-  const [inputText, setInputText] = useState("");
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim() !== "") {
-      setSelectedText(selection.toString());
-      setShowTooltip(true);
-      setTooltipPos({ x: e.clientX, y: e.clientY - 40 });
-    } else {
-      setShowTooltip(false);
-    }
-  };
-
-  const explainSelection = () => {
-    setActivePanel("chat");
-    setChatMessages(prev => [
-      ...prev, 
-      { role: "user", text: `Explicar: "${selectedText}"` },
-      { role: "ai", text: "Generando explicación basada en tu base de conocimientos..." }
-    ]);
-    setShowTooltip(false);
-    
-    // Mock response
-    setTimeout(() => {
-      setChatMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: "ai", text: `Aquí tienes un desglose más simple de "${selectedText}": Se refiere al proceso central donde las células descomponen las moléculas de los alimentos para obtener energía. Imagínalo como quemar madera en una chimenea, pero controlado cuidadosamente paso a paso para capturar el calor (energía) como ATP.` }
-      ]);
-    }, 1500);
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim()) return;
-    
-    setChatMessages(prev => [...prev, { role: "user", text: inputText }]);
-    setInputText("");
-    setActivePanel("chat");
-    
-    setTimeout(() => {
-      setChatMessages(prev => [
-        ...prev,
-        { role: "ai", text: "¡Es una gran pregunta! Según tus documentos, el ciclo de Krebs es la segunda etapa principal..." }
-      ]);
-    }, 1000);
-  };
+export default function SummariesList() {
+  const [view, setView] = useState<"grid" | "list">("grid");
 
   return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
+    <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
         <div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
-            <span>Biología 101</span>
-            <ChevronRight className="w-4 h-4" />
-            <span className="text-gray-900 font-medium">Capítulo 4</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-indigo-600" />
-            {mockSummary.title}
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            Tus Resúmenes
           </h1>
+          <p className="text-gray-500 text-lg">
+            Repasa y domina tus síntesis generadas por IA.
+          </p>
         </div>
-        
-        {/* Mobile Panel Toggle */}
-        <div className="lg:hidden flex bg-gray-100/80 p-1 rounded-xl">
-          <button 
-            onClick={() => setActivePanel("reading")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-colors", activePanel === "reading" ? "bg-white shadow-sm text-indigo-600" : "text-gray-500")}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+        <div className="relative w-full sm:max-w-sm">
+          <input
+            type="text"
+            placeholder="Buscar resúmenes..."
+            className="w-full bg-white border border-gray-200 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all"
+          />
+          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        </div>
+
+        <div className="flex bg-gray-100/80 p-1 rounded-xl self-end sm:self-auto">
+          <button
+            onClick={() => setView("grid")}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              view === "grid"
+                ? "bg-white shadow-sm text-indigo-600"
+                : "text-gray-500 hover:text-gray-900",
+            )}
           >
-            Leer
+            <Grid className="w-4 h-4" />
           </button>
-          <button 
-            onClick={() => setActivePanel("chat")}
-            className={cn("px-4 py-2 rounded-lg text-sm font-medium transition-colors", activePanel === "chat" ? "bg-white shadow-sm text-indigo-600" : "text-gray-500")}
+          <button
+            onClick={() => setView("list")}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              view === "list"
+                ? "bg-white shadow-sm text-indigo-600"
+                : "text-gray-500 hover:text-gray-900",
+            )}
           >
-            Chat IA
+            <ListIcon className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Dual Panel Layout */}
-      <div className="flex-1 flex gap-6 overflow-hidden relative min-h-0">
-        
-        {/* Reading Panel */}
-        <div 
-          className={cn(
-            "flex-1 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-y-auto relative transition-all duration-300",
-            activePanel === "chat" ? "hidden lg:block" : "block"
-          )}
-          onMouseUp={handleMouseUp}
-        >
-          <div className="max-w-3xl mx-auto p-8 sm:p-12 pb-24 prose prose-indigo prose-lg font-serif">
-            {mockSummary.content.map((block, idx) => {
-              if (block.type === "h2") return <h2 key={idx} className="font-sans font-bold text-gray-900 mt-12 mb-6 text-2xl">{block.text}</h2>;
-              if (block.type === "p") return <p key={idx} className="text-gray-700 leading-relaxed mb-6">{block.text}</p>;
-              if (block.type === "list") return (
-                <ul key={idx} className="space-y-3 mb-8 text-gray-700">
-                  {block.items?.map((item, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-2.5" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              );
-              if (block.type === "callout") return (
-                <div key={idx} className="my-8 bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 flex gap-4 not-prose">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                    
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-indigo-900 text-sm uppercase tracking-wider mb-1">{block.title}</h4>
-                    <p className="text-indigo-800 leading-relaxed">{block.text}</p>
-                  </div>
-                </div>
-              );
-              return null;
-            })}
-          </div>
+      {/* Summary List/Grid */}
+      <div
+        className={cn(
+          "gap-6",
+          view === "grid"
+            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            : "flex flex-col",
+        )}
+      >
+        {mockSummaries.map((summary) => (
+          <Link href={`/views/summaries/${summary.id}`} key={summary.id}>
+            <motion.div
+              whileHover={{ y: -4 }}
+              className={cn(
+                "bg-white border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-100/40 rounded-3xl p-6 flex transition-all group overflow-hidden relative",
+                view === "grid"
+                  ? "flex-col h-full gap-5"
+                  : "flex-row items-center gap-6",
+              )}
+            >
+              {/* Top Accent Line */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-indigo-400 to-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-          {/* Floating Tooltip for Text Selection */}
-          <AnimatePresence>
-            {showTooltip && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                style={{ left: Math.min(Math.max(tooltipPos.x - 100, 20), window.innerWidth - 200), top: Math.max(tooltipPos.y, 20) }}
-                className="fixed z-50 bg-gray-900 text-white rounded-xl shadow-xl shadow-gray-900/20 p-1 flex gap-1 border border-gray-700"
+              <div
+                className={cn(
+                  "flex items-center justify-center rounded-2xl shrink-0 transition-colors",
+                  view === "grid"
+                    ? "w-14 h-14 bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white"
+                    : "w-12 h-12 bg-indigo-50 text-indigo-600",
+                )}
               >
-                <button 
-                  onClick={explainSelection}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-800 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Sparkles className="w-4 h-4 text-indigo-400" /> Explicar
-                </button>
-                <div className="w-px bg-gray-700 my-1" />
-                <button className="flex items-center gap-2 px-3 py-2 hover:bg-gray-800 rounded-lg text-sm font-medium transition-colors">
-                  <Highlighter className="w-4 h-4 text-emerald-400" /> Resaltar
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                <BookOpen className={view === "grid" ? "w-6 h-6" : "w-5 h-5"} />
+              </div>
 
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <h3
+                  className="text-gray-900 text-lg font-bold leading-tight mb-1.5 truncate group-hover:text-indigo-700 transition-colors"
+                  title={summary.title}
+                >
+                  {summary.title}
+                </h3>
+                <p className="text-gray-500 text-sm truncate mb-3">
+                  Basado en: {summary.source}
+                </p>
+
+                <div className="flex items-center gap-3 text-xs font-semibold text-gray-400">
+                  <span className="flex items-center gap-1 bg-gray-50 px-2 py-1 rounded-md">
+                    <Clock className="w-3.5 h-3.5" /> {summary.readTime}
+                  </span>
+                  <span>•</span>
+                  <span>{summary.date}</span>
+                </div>
+              </div>
+
+              {/* Action / Progress Area */}
+              <div
+                className={cn(
+                  "flex items-center",
+                  view === "grid"
+                    ? "justify-between mt-auto pt-4 border-t border-gray-50"
+                    : "shrink-0 gap-8",
+                )}
+              >
+                {/* Visual Progress Pie/Bar */}
+                {view === "list" && (
+                  <div className="w-32 hidden md:block">
+                    <div className="flex justify-between text-xs font-bold text-gray-500 mb-1.5">
+                      <span>Progreso</span>
+                      <span className="text-indigo-600">
+                        {summary.progress}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 rounded-full"
+                        style={{ width: `${summary.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {view === "grid" && (
+                  <div className="flex flex-col gap-1 w-20">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                      Leído {summary.progress}%
+                    </span>
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 rounded-full"
+                        style={{ width: `${summary.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="w-10 h-10 rounded-full bg-gray-50 group-hover:bg-indigo-50 flex items-center justify-center text-gray-400 group-hover:text-indigo-600 transition-colors">
+                  <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </div>
+            </motion.div>
+          </Link>
+        ))}
       </div>
     </div>
   );
