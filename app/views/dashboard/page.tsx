@@ -198,9 +198,9 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+          <Link href="/views/documents" className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
             <ChevronRight className="w-5 h-5" />
-          </div>
+          </Link>
         </div>
 
         <div className="bg-white rounded-4xl p-6 border border-gray-100 shadow-sm flex items-center justify-between group hover:shadow-md transition-all cursor-pointer">
@@ -218,7 +218,9 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-purple-600 group-hover:text-white transition-colors">
-            <ChevronRight className="w-5 h-5" />
+            <Link href="/views/summaries">
+              <ChevronRight className="w-5 h-5" />
+            </Link>
           </div>
         </div>
       </div>
