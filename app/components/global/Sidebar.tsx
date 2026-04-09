@@ -17,6 +17,8 @@ import {
   LogOut,
 } from "lucide-react";
 import { cn } from "../../components/ui/utils";
+import { logout } from "@/app/auth/actions";
+import { useRouter } from "next/navigation";
 
 const navItems = [
   { icon: Home, label: "Inicio", path: "/views/dashboard" },
@@ -26,10 +28,17 @@ const navItems = [
 ];
 
 export function Sidebar({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/auth/login");
+    router.refresh();
+  };
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -181,9 +190,9 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             </motion.span>
           </Link>
 
-          <Link
-            href="/auth/login"
-            className="flex items-center w-full px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+          <button
+            onClick={handleLogout}
+            className="flex items-center w-full px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-xl transition-colors cursor-pointer"
           >
             <LogOut className="w-5 h-5 min-w-5" />
             <motion.span
@@ -195,7 +204,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
             >
               Cerrar sesión
             </motion.span>
-          </Link>
+          </button>
 
           <div className="flex items-center px-3 py-3 mt-2 rounded-xl bg-gray-50 border border-gray-100">
             <div className="w-8 h-8 rounded-full bg-linear-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center text-xs font-bold min-w-8">

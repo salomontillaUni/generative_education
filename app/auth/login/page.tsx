@@ -15,6 +15,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 
+import { login } from "@/app/auth/actions";
+
 interface FormErrors {
   email?: string;
   password?: string;
@@ -55,11 +57,19 @@ export default function LoginPage() {
     setIsLoading(true);
     setErrors({});
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const formData = new FormData();
+    formData.append("email", email);
+    formData.append("password", password);
 
-    // For now, just redirect to dashboard
-    router.push("/views/dashboard");
+    const result = await login(formData);
+
+    if (result?.error) {
+      setErrors({ general: result.error });
+      setIsLoading(false);
+    } else {
+      router.push("/views/dashboard");
+      router.refresh();
+    }
   };
 
   return (

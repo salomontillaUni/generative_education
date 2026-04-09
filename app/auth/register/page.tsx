@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "../../components/ui/utils";
 
+import { signup } from "@/app/auth/actions";
+
 interface FormErrors {
   name?: string;
   email?: string;
@@ -43,6 +45,7 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const validate = (): boolean => {
     const newErrors: FormErrors = {};
@@ -90,11 +93,24 @@ export default function RegisterPage() {
     setIsLoading(true);
     setErrors({});
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const formData = new FormData();
+    formData.append("email", email);
+    formData.append("password", password);
+    formData.append("name", name);
 
-    // For now, redirect to login
-    router.push("/auth/login");
+    const result = await signup(formData);
+
+    if (result?.error) {
+      setErrors({ general: result.error });
+      setIsLoading(false);
+    } else {
+      setIsSuccess(true);
+      setIsLoading(false);
+      // Wait a bit then redirect to login
+      setTimeout(() => {
+        router.push("/auth/login");
+      }, 3000);
+    }
   };
 
   return (
@@ -185,6 +201,18 @@ export default function RegisterPage() {
               >
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 {errors.general}
+              </motion.div>
+            )}
+
+            {/* Success message */}
+            {isSuccess && (
+              <motion.div
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm p-3.5 rounded-xl"
+              >
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                ¡Cuenta creada! Revisa tu correo para confirmar tu registro.
               </motion.div>
             )}
 
