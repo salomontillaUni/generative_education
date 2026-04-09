@@ -27,12 +27,20 @@ const navItems = [
   { icon: BrainCircuit, label: "Evaluaciones", path: "/views/quizzes" },
 ];
 
-export function Sidebar({ children }: { children: React.ReactNode }) {
+export function Sidebar({ children, user }: { children: React.ReactNode, user: any }) {
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const pathname = usePathname();
+
+  const fullName = user?.user_metadata?.full_name || "Estudiante";
+  const initials = fullName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "ES";
 
   const handleLogout = async () => {
     await logout();
@@ -208,7 +216,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center px-3 py-3 mt-2 rounded-xl bg-gray-50 border border-gray-100">
             <div className="w-8 h-8 rounded-full bg-linear-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center text-xs font-bold min-w-8">
-              JE
+              {initials}
             </div>
             <motion.div
               className="ml-3 overflow-hidden flex-1"
@@ -218,7 +226,7 @@ export function Sidebar({ children }: { children: React.ReactNode }) {
               }}
             >
               <p className="text-sm font-medium text-gray-900 truncate">
-                Juan Estudiante
+                {fullName}
               </p>
             </motion.div>
           </div>
