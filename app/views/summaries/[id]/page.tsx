@@ -13,6 +13,10 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "../../../components/ui/utils";
+import { useParams } from "next/navigation";
+import { useEffect } from "react";
+import { createClient } from "@/app/utils/supabase/client";
+import { Loader2, AlertCircle } from "lucide-react";
 
 const mockSummary = {
   title: "Mecánica de la Respiración Celular",
@@ -66,16 +70,53 @@ const mockSummary = {
 
 export default function SummaryDetail() {
   const router = useRouter();
+  const { id } = useParams();
+  const [summary, setSummary] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [activePanel, setActivePanel] = useState<"reading" | "chat">("reading");
   const [selectedText, setSelectedText] = useState("");
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
-  const [chatMessages, setChatMessages] = useState([
-    {
-      role: "ai",
-      text: "¡Hola! Estoy listo para ayudarte a entender la 'Mecánica de la Respiración Celular'. Resalta cualquier texto o haz una pregunta aquí.",
-    },
-  ]);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  
+  useEffect(() => {
+    async function fetchSummary() {
+      if (!id) return;
+      
+      const supabase = createClient();
+      
+      try {
+        const { data, error } = await supabase
+          .from("summaries")
+          .select("*")
+          .eq("id", id)
+          .single();
+          
+        if (error) throw error;
+        
+        // The content is stored as JSON in our API
+        const summaryData = data.content;
+        setSummary(summaryData);
+        
+        // Initialize chat with title
+        setChatMessages([
+          {
+            role: "ai",
+            text: `¡Hola! Estoy listo para ayudarte a entender "${summaryData.title}". Resalta cualquier texto o haz una pregunta aquí.`,
+          },
+        ]);
+      } catch (err: any) {
+        console.error("Error fetching summary:", err);
+        setError("No se pudo cargar el resumen");
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    fetchSummary();
+  }, [id]);
   const [inputText, setInputText] = useState("");
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -132,6 +173,30 @@ export default function SummaryDetail() {
     }, 1000);
   };
 
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+        <p className="text-gray-500 font-medium">Cargando material de estudio...</p>
+      </div>
+    );
+  }
+
+  if (error || !summary) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <AlertCircle className="w-12 h-12 text-red-500" />
+        <p className="text-gray-700 font-bold text-xl">{error || "Resumen no encontrado"}</p>
+        <button 
+          onClick={() => router.push("/views/summaries")}
+          className="bg-indigo-600 text-white px-6 py-2 rounded-xl hover:bg-indigo-700 transition-colors"
+        >
+          Volver a la lista
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-2rem)] w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
@@ -148,7 +213,7 @@ export default function SummaryDetail() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
               <BookOpen className="w-8 h-8 text-indigo-600" />
-              {mockSummary.title}
+              {summary.title}
             </h1>
           </div>
 
@@ -191,7 +256,7 @@ export default function SummaryDetail() {
           onMouseUp={handleMouseUp}
         >
           <div className="max-w-3xl mx-auto p-8 sm:p-12 pb-24 prose prose-indigo prose-lg font-serif">
-            {mockSummary.content.map((block, idx) => {
+            {summary.content.map((block: any, idx: number) => {
               if (block.type === "h2")
                 return (
                   <h2
@@ -210,7 +275,7 @@ export default function SummaryDetail() {
               if (block.type === "list")
                 return (
                   <ul key={idx} className="space-y-3 mb-8 text-gray-700">
-                    {block.items?.map((item, i) => (
+                    {block.items?.map((item: string, i: number) => (
                       <li key={i} className="flex gap-3">
                         <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0 mt-2.5" />
                         <span>{item}</span>
@@ -229,7 +294,7 @@ export default function SummaryDetail() {
                     </div>
                     <div>
                       <h4 className="font-semibold text-indigo-900 text-sm uppercase tracking-wider mb-1">
-                        {block.title}
+                        {block.title || "Nota IA"}
                       </h4>
                       <p className="text-indigo-800 leading-relaxed">
                         {block.text}

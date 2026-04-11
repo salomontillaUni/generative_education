@@ -18,6 +18,11 @@ import {
   Trash2,
 } from "lucide-react";
 import { cn } from "../../components/ui/utils";
+import { toast } from "sonner";
+import { useEffect } from "react";
+import { createClient } from "@/app/utils/supabase/client";
+import { formatDistanceToNow } from "date-fns";
+import { es } from "date-fns/locale";
 
 const mockDocuments = [
   {
@@ -46,38 +51,95 @@ const mockDocuments = [
 export default function Documents() {
   const router = useRouter();
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStatus, setProcessingStatus] = useState("");
   const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const fetchDocuments = useCallback(async () => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("documents")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (!error) {
+      setDocuments(data || []);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
 
+    const file = acceptedFiles[0];
     setIsUploading(true);
     setUploadProgress(0);
     setProcessingStatus("Subiendo archivo...");
 
-    // Simulate upload and processing
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 10;
-      setUploadProgress(progress);
+    const formData = new FormData();
+    formData.append("file", file);
 
-      if (progress === 40) setProcessingStatus("Extrayendo conceptos clave...");
-      if (progress === 70) setProcessingStatus("Generando mapa mental...");
-      if (progress === 90) setProcessingStatus("Finalizando resumen...");
+    try {
+      // Step 1: Upload and get processing updates
+      // Note: Since we don't have a real-time progress for the AI part on a single POST,
+      // we'll simulate the internal steps while the request is pending.
+      
+      const simulateProgress = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev < 30) return prev + 5;
+          if (prev < 60) {
+            setProcessingStatus("Analizando contenido con IA...");
+            return prev + 2;
+          }
+          if (prev < 90) {
+            setProcessingStatus("Generando resumen estructurado...");
+            return prev + 1;
+          }
+          return prev;
+        });
+      }, 800);
 
-      if (progress >= 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsUploading(false);
-          setUploadProgress(0);
-          setProcessingStatus("");
-        }, 1000);
+      const response = await fetch("/api/documents/summarize", {
+        method: "POST",
+        body: formData,
+      });
+
+      clearInterval(simulateProgress);
+      setUploadProgress(100);
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Error al procesar el documento");
       }
-    }, 500);
-  }, []);
+
+      setProcessingStatus("¡Completado!");
+      toast.success("Documento procesado con éxito");
+
+      // Redirect to the new summary
+      setTimeout(() => {
+        router.push(`/views/summaries/${result.summaryId}`);
+      }, 1000);
+
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error(error.message || "Error al subir el documento");
+      setIsUploading(false);
+      setUploadProgress(0);
+      setProcessingStatus("");
+    }
+  }, [router]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
@@ -128,7 +190,7 @@ export default function Documents() {
                     : "Haz clic o arrastra documentos aquí"}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Soporta PDF, DOCX, TXT. Tamaño máx 50MB.
+                  Soporta PDF, DOCX, TXT. Tamaño máx 30MB.
                 </p>
               </div>
             </motion.div>
@@ -229,137 +291,132 @@ export default function Documents() {
       )}
 
       {/* Document List/Grid */}
-      <div
-        className={cn(
-          "gap-2",
-          view === "grid"
-            ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
-            : "flex flex-col",
-        )}
-      >
-        {mockDocuments.map((doc) => (
-          <motion.div
-            key={doc.id}
-            whileHover={{ y: -2 }}
-            onClick={() => router.push(`/views/summaries`)}
-            className={cn(
-              "bg-white border border-gray-100 shadow-sm rounded-2xl p-5 flex transition-all group cursor-pointer hover:shadow-md hover:border-indigo-100 relative mb-10",
-              view === "grid"
-                ? "flex-col gap-4 h-48"
-                : "flex-row items-center gap-4",
-            )}
-          >
-            {/* Status indicator line for processing */}
-            {doc.status === "processing" && (
-              <div className="absolute top-0 left-0 w-full h-1 bg-indigo-100 rounded-t-2xl overflow-hidden">
-                <div className="h-full bg-indigo-500 w-1/3 animate-progress-indeterminate" />
-              </div>
-            )}
-
-            <div
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin" />
+          <p className="text-gray-500 font-medium">Cargando tus documentos...</p>
+        </div>
+      ) : documents.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center gap-4 bg-gray-50 rounded-3xl border border-dashed border-gray-200">
+          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center text-gray-400">
+            <FileText className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">No hay documentos</h3>
+            <p className="text-gray-500 max-w-xs mx-auto">Sube tu primer material de estudio arriba.</p>
+          </div>
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "gap-2",
+            view === "grid"
+              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              : "flex flex-col",
+          )}
+        >
+          {documents.map((doc) => (
+            <motion.div
+              key={doc.id}
+              whileHover={{ y: -2 }}
+              onClick={() => router.push(`/views/summaries`)} // Note: Ideally should link to specific summary if linked
               className={cn(
-                "flex items-center justify-center rounded-xl",
+                "bg-white border border-gray-100 shadow-sm rounded-2xl p-5 flex transition-all group cursor-pointer hover:shadow-md hover:border-indigo-100 relative mb-10",
                 view === "grid"
-                  ? "w-12 h-12 bg-indigo-50 text-indigo-600"
-                  : "w-10 h-10 bg-indigo-50 text-indigo-600 shrink-0",
+                  ? "flex-col gap-4 h-48"
+                  : "flex-row items-center gap-4",
               )}
             >
-              <FileText className={view === "grid" ? "w-6 h-6" : "w-5 h-5"} />
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <h3
-                className="text-gray-900 font-semibold truncate leading-tight mb-1"
-                title={doc.title}
-              >
-                {doc.title}
-              </h3>
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {doc.date}
-                </span>
-                <span>•</span>
-                <span>{doc.size}</span>
-              </div>
-            </div>
-
-            {view === "list" && (
-              <div className="hidden sm:flex items-center justify-end px-4 flex-1">
-                {doc.status === "processed" ? (
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Listo
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Procesando
-                  </span>
+              <div
+                className={cn(
+                  "flex items-center justify-center rounded-xl",
+                  view === "grid"
+                    ? "w-12 h-12 bg-indigo-50 text-indigo-600"
+                    : "w-10 h-10 bg-indigo-50 text-indigo-600 shrink-0",
                 )}
+              >
+                <FileText className={view === "grid" ? "w-6 h-6" : "w-5 h-5"} />
               </div>
-            )}
 
-            <div
-              className={cn(
-                "flex items-center justify-between mt-auto w-full",
-                view === "list" && "w-auto mt-0",
-              )}
-            >
-              {view === "grid" && (
-                <div>
-                  {doc.status === "processed" ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Listo
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 text-xs font-medium text-indigo-600">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />{" "}
-                      Procesando IA
-                    </span>
-                  )}
+              <div className="flex-1 min-w-0">
+                <h3
+                  className="text-gray-900 font-semibold truncate leading-tight mb-1"
+                  title={doc.name}
+                >
+                  {doc.name}
+                </h3>
+                <div className="flex items-center gap-3 text-xs text-gray-500">
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true, locale: es })}
+                  </span>
+                </div>
+              </div>
+
+              {view === "list" && (
+                <div className="hidden sm:flex items-center justify-end px-4 flex-1">
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Procesado
+                  </span>
                 </div>
               )}
 
-              <div className="relative z-50">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveDropdown(
-                      activeDropdown === doc.id ? null : doc.id,
-                    );
-                  }}
-                  className="text-gray-400 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-colors relative z-50"
-                >
-                  <MoreVertical className="w-4 h-4" />
-                </button>
+              <div
+                className={cn(
+                  "flex items-center justify-between mt-auto w-full",
+                  view === "list" && "w-auto mt-0",
+                )}
+              >
+                {view === "grid" && (
+                  <div>
+                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Listo
+                    </span>
+                  </div>
+                )}
 
-                <AnimatePresence>
-                  {activeDropdown === doc.id && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                      transition={{ duration: 0.15 }}
-                      className={cn(
-                        "absolute w-56 bg-white border border-gray-100 shadow-xl rounded-2xl py-2 z-50 flex flex-col",
-                        view === "list"
-                          ? "right-0 top-10"
-                          : "-right-5 sm:right-0 top-10",
-                      )}
-                    >
-                      <button className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-left w-full">
-                        <BookOpen className="w-4 h-4" /> Ver Resumen
-                      </button>
-                      <div className="h-px bg-gray-100 my-1 mx-2" />
-                      <button className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors text-left w-full">
-                        <Trash2 className="w-4 h-4" /> Eliminar Documento
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                <div className="relative z-50">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveDropdown(
+                        activeDropdown === doc.id ? null : doc.id,
+                      );
+                    }}
+                    className="text-gray-400 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-colors relative z-50"
+                  >
+                    <MoreVertical className="w-4 h-4" />
+                  </button>
+
+                  <AnimatePresence>
+                    {activeDropdown === doc.id && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        transition={{ duration: 0.15 }}
+                        className={cn(
+                          "absolute w-56 bg-white border border-gray-100 shadow-xl rounded-2xl py-2 z-50 flex flex-col",
+                          view === "list"
+                            ? "right-0 top-10"
+                            : "-right-5 sm:right-0 top-10",
+                        )}
+                      >
+                        <button className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors text-left w-full">
+                          <BookOpen className="w-4 h-4" /> Ver Resumen
+                        </button>
+                        <div className="h-px bg-gray-100 my-1 mx-2" />
+                        <button className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors text-left w-full">
+                          <Trash2 className="w-4 h-4" /> Eliminar Documento
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
