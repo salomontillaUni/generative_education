@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
 import { cookies } from "next/headers";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import {PDFParse} from "pdf-parse";
+import { PDFParse } from "pdf-parse";
+import path from "path";
+
+// Set worker source for pdf-parse (pdfjs-dist)
+// This is required in Next.js environments where the worker file isn't automatically found
+PDFParse.setWorker(path.join(process.cwd(), "node_modules/pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs"));
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,9 +46,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se pudo extraer texto del documento" }, { status: 422 });
     }
 
-    // 4. Summarize with Gemini
+    // 4. Summarize with Gemini (with fallback)
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const prompt = `
       Eres un asistente experto en educación generativa. Tu tarea es analizar el siguiente texto y generar un resumen estructurado para un estudiante.
@@ -68,19 +72,38 @@ export async function POST(req: NextRequest) {
       Texto a analizar:
       ${text.substring(0, 30000)} // Limit text to avoid token issues, though Flash handles more.
     `;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    let summaryJson;
     
-    try {
+    const trySummarize = async (modelName: string) => {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
       const responseText = response.text();
-      // Clean up markdown if Gemini returns it
       const cleanJson = responseText.replace(/```json|```/g, "").trim();
-      summaryJson = JSON.parse(cleanJson);
-    } catch (e) {
-      console.error("Error parsing Gemini response:", e);
-      return NextResponse.json({ error: "Error procesando la respuesta de la IA" }, { status: 500 });
+      return JSON.parse(cleanJson);
+    };
+
+    let summaryJson;
+    try {
+      // Try primary model
+      summaryJson = await trySummarize("gemini-2.5-flash");
+    } catch (primaryError: any) {
+      if (primaryError.status === 429) {
+        console.warn("Gemini 2.0 Flash quota exceeded, trying 1.5 Flash fallback...");
+        try {
+          // Try fallback model
+          summaryJson = await trySummarize("gemini-2.5-flash-lite");
+        } catch (fallbackError: any) {
+          console.error("Gemini fallbacks failed:", fallbackError);
+          const isQuota = fallbackError.status === 429 || fallbackError.message?.includes("quota");
+          return NextResponse.json({ 
+            error: isQuota 
+              ? "Se ha agotado la cuota gratuita de la IA. Por favor, intenta de nuevo en unos minutos." 
+              : "Error procesando el documento con IA" 
+          }, { status: isQuota ? 429 : 500 });
+        }
+      } else {
+        throw primaryError;
+      }
     }
 
     // 5. Save to Database
