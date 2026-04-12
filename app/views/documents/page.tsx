@@ -141,7 +141,28 @@ export default function Documents() {
     }
   }, [router]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+    onDrop,
+    accept: {
+      'application/pdf': ['.pdf'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/msword': ['.doc'],
+      'text/plain': ['.txt']
+    },
+    maxSize: 10 * 1024 * 1024, // 10MB
+    onDropRejected: (fileRejections) => {
+      fileRejections.forEach((rejection) => {
+        const { errors } = rejection;
+        if (errors[0]?.code === 'file-too-large') {
+          toast.error("El archivo supera los 10MB permitidos.");
+        } else if (errors[0]?.code === 'file-invalid-type') {
+          toast.error("Formato no soportado. Debe ser PDF, Word o TXT.");
+        } else {
+          toast.error(errors[0]?.message);
+        }
+      });
+    }
+  });
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
@@ -190,7 +211,7 @@ export default function Documents() {
                     : "Haz clic o arrastra documentos aquí"}
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Soporta PDF, DOCX, TXT. Tamaño máx 30MB.
+                  Soporta PDF, Word, TXT. Tamaño máx 10MB.
                 </p>
               </div>
             </motion.div>

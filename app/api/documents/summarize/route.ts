@@ -28,6 +28,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No se proporcionó ningún archivo" }, { status: 400 });
     }
 
+    // 2.5 Validation: Max size 10MB and allowed formats
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const ALLOWED_MIME_TYPES = [
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+      "application/msword", // .doc
+      "text/plain"
+    ];
+
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ 
+        error: "El archivo es demasiado grande. El tamaño máximo permitido es 10MB." 
+      }, { status: 400 });
+    }
+
+    if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+      // Logic for .txt sometimes has empty type on some OS
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const isAllowedExt = ["pdf", "docx", "doc", "txt"].includes(extension || "");
+      
+      if (!isAllowedExt) {
+        return NextResponse.json({ 
+          error: "Formato de archivo no soportado. Por favor, sube un documento PDF, Word o TXT." 
+        }, { status: 400 });
+      }
+    }
+
     // 3. Extract text from PDF
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
