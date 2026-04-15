@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -11,6 +12,9 @@ import {
   List,
   X,
   ArrowLeft,
+  Play,
+  ClipboardCheck,
+  RotateCcw,
 } from "lucide-react";
 import { cn } from "../../../components/ui/utils";
 import { useParams } from "next/navigation";
@@ -76,7 +80,9 @@ export default function SummaryDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
-  
+  const [linkedQuizId, setLinkedQuizId] = useState<string | null>(null);
+  const [hasQuizAttempt, setHasQuizAttempt] = useState(false);
+
   const [activePanel, setActivePanel] = useState<"reading" | "chat">("reading");
   const [selectedText, setSelectedText] = useState("");
   const [showTooltip, setShowTooltip] = useState(false);
@@ -192,6 +198,24 @@ export default function SummaryDetail() {
         throw new Error(payload?.error || "No se pudo generar el quiz");
       }
 
+      const sid = summaryId;
+      if (payload.alreadyExists && payload.quizId) {
+        if (sid) {
+          setLinkedQuizId(payload.quizId);
+          setHasQuizAttempt(!!payload.hasAttempt);
+        }
+        router.push(
+          payload.hasAttempt
+            ? `/views/quizzes/${payload.quizId}/results?fromSummary=${encodeURIComponent(sid ?? "")}`
+            : `/views/quizzes/${payload.quizId}`,
+        );
+        return;
+      }
+
+      if (sid) {
+        setLinkedQuizId(payload.quizId);
+        setHasQuizAttempt(false);
+      }
       router.push(`/views/quizzes/${payload.quizId}`);
     } catch (generationError: unknown) {
       const message =
@@ -239,46 +263,80 @@ export default function SummaryDetail() {
           Volver a Resúmenes
         </button>
 
-        <div className="flex justify-between items-center">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 flex items-center gap-3">
-              <BookOpen className="w-8 h-8 text-indigo-600" />
-              {summary.title}
+              <BookOpen className="w-8 h-8 text-indigo-600 shrink-0" />
+              <span className="min-w-0">{summary.title}</span>
             </h1>
           </div>
-          <button
-            onClick={handleGenerateQuiz}
-            disabled={isGeneratingQuiz || !summaryId}
-            className="hidden sm:flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {isGeneratingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {isGeneratingQuiz ? "Generando..." : "Generar quiz"}
-          </button>
-
-          {/* Mobile Panel Toggle */}
-          <div className="lg:hidden flex bg-gray-100/80 p-1 rounded-xl">
-            <button
-              onClick={() => setActivePanel("reading")}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                activePanel === "reading"
-                  ? "bg-white shadow-sm text-indigo-600"
-                  : "text-gray-500",
-              )}
-            >
-              Leer
-            </button>
-            <button
-              onClick={() => setActivePanel("chat")}
-              className={cn(
-                "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
-                activePanel === "chat"
-                  ? "bg-white shadow-sm text-indigo-600"
-                  : "text-gray-500",
-              )}
-            >
-              Chat IA
-            </button>
+          <div className="flex flex-wrap items-center gap-2 justify-end">
+            {!linkedQuizId ? (
+              <button
+                type="button"
+                onClick={handleGenerateQuiz}
+                disabled={isGeneratingQuiz || !summaryId}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
+              >
+                {isGeneratingQuiz ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Sparkles className="w-4 h-4" />
+                )}
+                {isGeneratingQuiz ? "Generando..." : "Generar quiz"}
+              </button>
+            ) : hasQuizAttempt ? (
+              <>
+                <Link
+                  href={`/views/quizzes/${linkedQuizId}/results?fromSummary=${encodeURIComponent(summaryId ?? "")}`}
+                  className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-gray-800 transition-colors"
+                >
+                  <ClipboardCheck className="w-4 h-4" />
+                  Ver resultados
+                </Link>
+                <Link
+                  href={`/views/quizzes/${linkedQuizId}`}
+                  className="flex items-center gap-2 bg-white border border-gray-200 text-gray-800 px-4 py-2.5 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reintentar
+                </Link>
+              </>
+            ) : (
+              <Link
+                href={`/views/quizzes/${linkedQuizId}`}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition-colors"
+              >
+                <Play className="w-4 h-4" />
+                Hacer quiz
+              </Link>
+            )}
+            <div className="lg:hidden flex bg-gray-100/80 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setActivePanel("reading")}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  activePanel === "reading"
+                    ? "bg-white shadow-sm text-indigo-600"
+                    : "text-gray-500",
+                )}
+              >
+                Leer
+              </button>
+              <button
+                type="button"
+                onClick={() => setActivePanel("chat")}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+                  activePanel === "chat"
+                    ? "bg-white shadow-sm text-indigo-600"
+                    : "text-gray-500",
+                )}
+              >
+                Chat IA
+              </button>
+            </div>
           </div>
         </div>
       </div>

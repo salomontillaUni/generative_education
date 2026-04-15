@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -46,6 +46,10 @@ export default function QuizEngine() {
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [attemptSaved, setAttemptSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [responses, setResponses] = useState<Record<string, string>>({});
+  const responsesRef = useRef<Record<string, string>>({});
+  responsesRef.current = responses;
 
   useEffect(() => {
     const fetchQuiz = async () => {
@@ -71,41 +75,56 @@ export default function QuizEngine() {
     fetchQuiz();
   }, [id]);
 
-  const normalizedQuestions = useMemo(() => {
+  type NormalizedQuestion = {
+    id: string;
+    text: string;
+    options: { id: string; text: string }[];
+    correctIndex: number;
+    correctOptionId: string;
+    explanation: string;
+    reference: string;
+  };
+
+  const normalizedQuestions = useMemo((): NormalizedQuestion[] => {
     const questions = quiz?.questions || [];
     return questions
       .map((question) => {
         const options = [...(question.options || [])];
         const correctIndex = options.findIndex((option) => option.is_correct);
         if (options.length !== 4 || correctIndex < 0) return null;
+        const correctOption = options[correctIndex];
         return {
           id: question.id,
           text: question.question_text,
-          options: options.map((option) => option.option_text),
+          options: options.map((option) => ({
+            id: option.id,
+            text: option.option_text,
+          })),
           correctIndex,
-          explanation: question.explanation || "Revisa el resumen para reforzar este concepto.",
+          correctOptionId: correctOption.id,
+          explanation:
+            question.explanation || "Revisa el resumen para reforzar este concepto.",
           reference: "Resumen asociado",
         };
       })
-      .filter(Boolean) as Array<{
-      id: string;
-      text: string;
-      options: string[];
-      correctIndex: number;
-      explanation: string;
-      reference: string;
-    }>;
+      .filter((q): q is NormalizedQuestion => q !== null);
   }, [quiz]);
 
   const question = normalizedQuestions[currentQIndex];
   const totalQs = normalizedQuestions.length;
-  const isCorrect = question ? selectedOption === question.correctIndex : false;
+  const isCorrect = question
+    ? selectedOption !== null &&
+      question.options[selectedOption]?.id === question.correctOptionId
+    : false;
 
   const handleSelect = (index: number) => {
-    if (showFeedback) return;
+    if (showFeedback || !question) return;
+    const chosen = question.options[index];
+    if (!chosen) return;
     setSelectedOption(index);
     setShowFeedback(true);
-    if (index === question.correctIndex) {
+    setResponses((prev) => ({ ...prev, [question.id]: chosen.id }));
+    if (chosen.id === question.correctOptionId) {
       setScore((s) => s + 1);
     }
   };
@@ -124,29 +143,62 @@ export default function QuizEngine() {
     const saveAttempt = async () => {
       if (!isFinished || !quiz?.id || attemptSaved || totalQs === 0) return;
 
+      const latestResponses = responsesRef.current;
+      const allAnswered = normalizedQuestions.every((q) => latestResponses[q.id] != null);
+      if (!allAnswered) return;
+
       const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const finalScore = Number(((score / totalQs) * 100).toFixed(2));
-      const { error } = await supabase.from("quiz_attempts").insert({
-        quiz_id: quiz.id,
-        user_id: user.id,
-        score: finalScore,
-      });
+      const correctCount = normalizedQuestions.filter(
+        (q) => latestResponses[q.id] === q.correctOptionId,
+      ).length;
+      const finalScore = Number(((correctCount / totalQs) * 100).toFixed(2));
 
-      if (error) {
-        console.error("Error saving quiz attempt:", error);
+      const { data: attemptRow, error: attemptError } = await supabase
+        .from("quiz_attempts")
+        .insert({
+          quiz_id: quiz.id,
+          user_id: user.id,
+          score: finalScore,
+        })
+        .select("id")
+        .single();
+
+      if (attemptError || !attemptRow) {
+        console.error("Error saving quiz attempt:", attemptError);
+        setSaveError("No se pudo guardar tu intento. Intenta de nuevo.");
         return;
       }
 
+      const answerRows = normalizedQuestions.map((q) => {
+        const selectedId = latestResponses[q.id];
+        return {
+          attempt_id: attemptRow.id,
+          question_id: q.id,
+          selected_option_id: selectedId,
+          is_correct: selectedId === q.correctOptionId,
+        };
+      });
+
+      const { error: answersError } = await supabase.from("answers").insert(answerRows);
+
+      if (answersError) {
+        console.error("Error saving answers:", answersError);
+        setSaveError("Se guardó el puntaje pero no el detalle de respuestas.");
+        setAttemptSaved(true);
+        return;
+      }
+
+      setScore(correctCount);
       setAttemptSaved(true);
     };
 
     saveAttempt();
-  }, [attemptSaved, isFinished, quiz?.id, score, totalQs]);
+  }, [attemptSaved, isFinished, normalizedQuestions, quiz?.id, totalQs]);
 
   if (loading) {
     return (
@@ -171,6 +223,7 @@ export default function QuizEngine() {
   }
 
   if (isFinished) {
+    const pct = totalQs > 0 ? Math.round((score / totalQs) * 100) : 0;
     return (
       <div className="min-h-screen w-full bg-gray-50 flex flex-col items-center justify-center p-6 text-center font-sans relative z-50 overflow-hidden">
         <motion.div
@@ -182,45 +235,64 @@ export default function QuizEngine() {
             <Sparkles className="w-48 h-48 text-indigo-900" />
           </div>
 
-          <div className="w-24 h-24 rounded-3xl bg-indigo-50 flex items-center justify-center mx-auto mb-6 relative shadow-inner border border-indigo-100">
-            <Sparkles className="w-10 h-10 text-indigo-500" />
-            <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm">
-              +{Math.round((score / totalQs) * 100)}%
-            </div>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-gray-900 mb-2 tracking-tight">
-            ¡Prueba Completada!
-          </h1>
-          <p className="text-gray-500 mb-8 font-medium">
-            Obtuviste {score} de {totalQs}
-          </p>
-
-          <div className="space-y-4">
-            <div className="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-6 text-left shadow-sm relative overflow-hidden">
-              <h3 className="font-bold text-indigo-900 flex items-center gap-2 mb-2">
-                <RefreshCcw className="w-4 h-4 text-indigo-600" /> Plan de
-                Acción
-              </h3>
-              <p className="text-indigo-800/80 text-sm leading-relaxed">
-                Basado en tus respuestas, te recomendamos repasar la sección
-                &quot;Proceso de Glucólisis&quot; en tus notas antes de avanzar.
+          {!attemptSaved && !saveError ? (
+            <p className="text-gray-600 font-medium py-12">Guardando resultados...</p>
+          ) : (
+            <>
+              <div className="w-24 h-24 rounded-3xl bg-indigo-50 flex items-center justify-center mx-auto mb-6 relative shadow-inner border border-indigo-100">
+                <Sparkles className="w-10 h-10 text-indigo-500" />
+                <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white text-xs font-bold px-2 py-1 rounded-full border-2 border-white shadow-sm">
+                  +{pct}%
+                </div>
+              </div>
+              <h1 className="text-3xl sm:text-4xl font-black text-gray-900 mb-2 tracking-tight">
+                ¡Prueba Completada!
+              </h1>
+              <p className="text-gray-500 mb-8 font-medium">
+                Obtuviste {score} de {totalQs}
               </p>
-              <Link
-                href="/views/summaries"
-                className="mt-4 bg-white text-indigo-700 font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm hover:bg-indigo-50 transition-colors w-full flex justify-between items-center group border border-indigo-100"
-              >
-                Repasar Conceptos{" "}
-                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
 
-            <Link
-              href="/views/quizzes"
-              className="flex items-center justify-center w-full bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-colors shadow-md"
-            >
-              Volver al Panel
-            </Link>
-          </div>
+              {saveError && (
+                <p className="text-red-600 text-sm mb-4 font-medium">{saveError}</p>
+              )}
+
+              <div className="space-y-4">
+                <div className="bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-6 text-left shadow-sm relative overflow-hidden">
+                  <h3 className="font-bold text-indigo-900 flex items-center gap-2 mb-2">
+                    <RefreshCcw className="w-4 h-4 text-indigo-600" /> Plan de
+                    Acción
+                  </h3>
+                  <p className="text-indigo-800/80 text-sm leading-relaxed">
+                    Basado en tus respuestas, te recomendamos repasar el resumen
+                    asociado antes de avanzar.
+                  </p>
+                  <Link
+                    href="/views/summaries"
+                    className="mt-4 bg-white text-indigo-700 font-semibold px-4 py-2.5 rounded-xl text-sm shadow-sm hover:bg-indigo-50 transition-colors w-full flex justify-between items-center group border border-indigo-100"
+                  >
+                    Repasar Conceptos{" "}
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </div>
+
+                {attemptSaved && quiz?.id && (
+                  <Link
+                    href={`/views/quizzes/${quiz.id}/results`}
+                    className="flex items-center justify-center w-full bg-indigo-600 text-white font-semibold py-3.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-md"
+                  >
+                    Ver repaso de respuestas
+                  </Link>
+                )}
+
+                <Link
+                  href="/views/quizzes"
+                  className="flex items-center justify-center w-full bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-colors shadow-md"
+                >
+                  Volver al Panel
+                </Link>
+              </div>
+            </>
+          )}
         </motion.div>
       </div>
     );
@@ -274,7 +346,7 @@ export default function QuizEngine() {
             <div className="space-y-3 sm:space-y-4 w-full max-w-2xl">
               {question.options.map((option, index) => {
                 const isSelected = selectedOption === index;
-                const isCorrectOption = index === question.correctIndex;
+                const isCorrectOption = option.id === question.correctOptionId;
 
                 let optionClasses =
                   "bg-white border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30 text-gray-700 shadow-sm";
@@ -321,7 +393,7 @@ export default function QuizEngine() {
                       >
                         {String.fromCharCode(65 + index)}
                       </div>
-                      <span className="leading-snug">{option}</span>
+                      <span className="leading-snug">{option.text}</span>
                     </div>
 
                     {showFeedback && isCorrectOption && (

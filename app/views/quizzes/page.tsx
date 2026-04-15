@@ -176,23 +176,37 @@ export default function Quizzes() {
                 </div>
               </div>
 
-              <Link
-                href={`/views/quizzes/${quiz.id}`}
-                className={cn(
-                  "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
-                  quiz.status === "completed" 
-                    ? "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200" 
-                    : "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-100/50 group-hover:bg-indigo-600 group-hover:text-white"
-                )}
-              >
-                {quiz.status === "completed" ? (
-                  <><CheckCircle className="w-4 h-4" /> Revisar Respuestas</>
-                ) : quiz.status === "needs_review" ? (
-                  <><AlertCircle className="w-4 h-4" /> Rehacer Prueba</>
+              <div className="flex flex-col gap-2 w-full">
+                {quiz.score !== null ? (
+                  <>
+                    <Link
+                      href={`/views/quizzes/${quiz.id}/results`}
+                      className={cn(
+                        "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
+                        "bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200",
+                      )}
+                    >
+                      <CheckCircle className="w-4 h-4" /> Ver repaso
+                    </Link>
+                    <Link
+                      href={`/views/quizzes/${quiz.id}`}
+                      className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 border border-indigo-200 text-indigo-700 hover:bg-indigo-50 transition-all"
+                    >
+                      <Play className="w-4 h-4" /> Reintentar
+                    </Link>
+                  </>
                 ) : (
-                  <><Play className="w-4 h-4" /> Empezar Prueba</>
+                  <Link
+                    href={`/views/quizzes/${quiz.id}`}
+                    className={cn(
+                      "w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all",
+                      "bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-100/50 group-hover:bg-indigo-600 group-hover:text-white",
+                    )}
+                  >
+                    <Play className="w-4 h-4" /> Empezar prueba
+                  </Link>
                 )}
-              </Link>
+              </div>
             </motion.div>
           ))}
         </div>

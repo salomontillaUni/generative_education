@@ -79,6 +79,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "El resumen no tiene contenido utilizable" }, { status: 422 });
     }
 
+    const { data: existingQuiz, error: existingQuizError } = await supabase
+      .from("quizzes")
+      .select("id")
+      .eq("summary_id", summaryId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existingQuizError) {
+      console.error("Error checking existing quiz:", existingQuizError);
+      return NextResponse.json({ error: "No se pudo comprobar el quiz existente" }, { status: 500 });
+    }
+
+    if (existingQuiz?.id) {
+      const { data: latestAttempt } = await supabase
+        .from("quiz_attempts")
+        .select("id")
+        .eq("quiz_id", existingQuiz.id)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return NextResponse.json({
+        success: true,
+        quizId: existingQuiz.id,
+        alreadyExists: true,
+        hasAttempt: !!latestAttempt,
+      });
+    }
+
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const serializedSummary = JSON.stringify(summaryContent).slice(0, 30000);
 
@@ -164,6 +194,7 @@ export async function POST(req: NextRequest) {
         title: generatedQuiz.title,
         user_id: user.id,
         document_id: summary.document_id,
+        summary_id: summaryId,
       })
       .select("id")
       .single();
@@ -206,6 +237,8 @@ export async function POST(req: NextRequest) {
       success: true,
       quizId: quizRow.id,
       questionCount: normalizedQuestions.length,
+      alreadyExists: false,
+      hasAttempt: false,
     });
   } catch (error: unknown) {
     const typedError = error as ApiErrorLike;
