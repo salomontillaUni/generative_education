@@ -4,10 +4,15 @@ import { cookies } from "next/headers";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PDFParse } from "pdf-parse";
 import path from "path";
+import { pathToFileURL } from "url";
 
 // Set worker source for pdf-parse (pdfjs-dist)
-// This is required in Next.js environments where the worker file isn't automatically found
-PDFParse.setWorker(path.join(process.cwd(), "node_modules/pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs"));
+// pathToFileURL is required on Windows: bare paths like C:\... are invalid for dynamic import()
+const workerPath = path.join(
+  process.cwd(),
+  "node_modules/pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs",
+);
+PDFParse.setWorker(pathToFileURL(workerPath).href);
 
 export async function POST(req: NextRequest) {
   try {
