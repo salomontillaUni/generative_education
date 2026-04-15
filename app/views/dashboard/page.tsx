@@ -1,17 +1,51 @@
-import { createClient } from '@/app/utils/supabase/server'
-import { cookies } from 'next/headers'
-import DashboardClient from './dashboard-client'
+import { createClient } from "@/app/utils/supabase/server";
+import { cookies } from "next/headers";
+import DashboardClient, {
+  type DashboardAttemptRow,
+  type DashboardSummaryRow,
+} from "./dashboard-client";
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies()
-  const supabase = createClient(cookieStore)
-  
-  // Obtenemos el usuario actual
-  const { data: { user } } = await supabase.auth.getUser()
-  
-  // Aquí podríamos consultar datos reales de la base de datos
-  // por ahora simplemente pasamos el usuario al cliente
-  // const { data: stats } = await supabase.from('stats').select('*').single()
+  const cookieStore = await cookies();
+  const supabase = createClient(cookieStore);
 
-  return <DashboardClient user={user} />
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const since = new Date();
+  since.setDate(since.getDate() - 35);
+  since.setHours(0, 0, 0, 0);
+
+  const [attemptsRes, summaryRes] = await Promise.all([
+    supabase
+      .from("quiz_attempts")
+      .select("score, created_at")
+      .gte("created_at", since.toISOString())
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("summaries")
+      .select("id, title, created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (attemptsRes.error) {
+    console.error("Dashboard: quiz_attempts error", attemptsRes.error);
+  }
+  if (summaryRes.error) {
+    console.error("Dashboard: summaries error", summaryRes.error);
+  }
+
+  const attempts = (attemptsRes.data ?? []) as DashboardAttemptRow[];
+  const lastSummary = (summaryRes.data ?? null) as DashboardSummaryRow | null;
+
+  return (
+    <DashboardClient
+      user={user}
+      attempts={attempts}
+      lastSummary={lastSummary}
+    />
+  );
 }
