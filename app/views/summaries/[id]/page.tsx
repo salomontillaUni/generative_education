@@ -72,8 +72,10 @@ export default function SummaryDetail() {
   const router = useRouter();
   const { id } = useParams();
   const [summary, setSummary] = useState<any>(null);
+  const [summaryId, setSummaryId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
   
   const [activePanel, setActivePanel] = useState<"reading" | "chat">("reading");
   const [selectedText, setSelectedText] = useState("");
@@ -96,6 +98,7 @@ export default function SummaryDetail() {
           
         if (error) throw error;
         
+        setSummaryId(data.id);
         // The content is stored as JSON in our API
         const summaryData = data.content;
         setSummary(summaryData);
@@ -173,6 +176,33 @@ export default function SummaryDetail() {
     }, 1000);
   };
 
+  const handleGenerateQuiz = async () => {
+    if (!summaryId || isGeneratingQuiz) return;
+
+    try {
+      setIsGeneratingQuiz(true);
+      const response = await fetch("/api/quizzes/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summaryId, questionCount: 5 }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || "No se pudo generar el quiz");
+      }
+
+      router.push(`/views/quizzes/${payload.quizId}`);
+    } catch (generationError: unknown) {
+      const message =
+        generationError instanceof Error ? generationError.message : "No se pudo generar el quiz";
+      console.error("Error generating quiz:", generationError);
+      setError(message);
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -216,6 +246,14 @@ export default function SummaryDetail() {
               {summary.title}
             </h1>
           </div>
+          <button
+            onClick={handleGenerateQuiz}
+            disabled={isGeneratingQuiz || !summaryId}
+            className="hidden sm:flex items-center gap-2 bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {isGeneratingQuiz ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {isGeneratingQuiz ? "Generando..." : "Generar quiz"}
+          </button>
 
           {/* Mobile Panel Toggle */}
           <div className="lg:hidden flex bg-gray-100/80 p-1 rounded-xl">

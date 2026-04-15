@@ -1,23 +1,112 @@
 "use client";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { 
   BrainCircuit, 
   Play, 
   CheckCircle, 
   Clock, 
-  TrendingUp,
   AlertCircle
 } from "lucide-react";
 import { cn } from "../../components/ui/utils";
-import Link from 'next/link'
+import Link from "next/link";
+import { createClient } from "@/app/utils/supabase/client";
 
-const mockQuizzes = [
-  { id: 1, title: "Mecánica de la Respiración Celular", status: "recommended", score: null, time: "5 min", questions: 10 },
-  { id: 2, title: "Historia de la Antigua Roma", status: "completed", score: 85, time: "12 min", questions: 20 },
-  { id: 3, title: "Intro a la Mecánica Cuántica", status: "needs_review", score: 45, time: "8 min", questions: 15 },
-];
+type QuizRow = {
+  id: string;
+  title: string;
+  created_at: string;
+  questions: { id: string }[] | null;
+};
+
+type AttemptRow = {
+  quiz_id: string;
+  score: number | null;
+  created_at: string;
+};
+
+type QuizCard = {
+  id: string;
+  title: string;
+  status: "recommended" | "completed" | "needs_review";
+  score: number | null;
+  time: string;
+  questions: number;
+};
 
 export default function Quizzes() {
+  const [quizzes, setQuizzes] = useState<QuizRow[]>([]);
+  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchQuizzes = async () => {
+      const supabase = createClient();
+
+      const { data: quizzesData, error: quizzesError } = await supabase
+        .from("quizzes")
+        .select("id, title, created_at, questions(id)")
+        .order("created_at", { ascending: false });
+
+      if (quizzesError) {
+        console.error("Error fetching quizzes:", quizzesError);
+        setLoading(false);
+        return;
+      }
+
+      setQuizzes(quizzesData || []);
+
+      const quizIds = (quizzesData || []).map((quiz) => quiz.id);
+      if (quizIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: attemptsData, error: attemptsError } = await supabase
+        .from("quiz_attempts")
+        .select("quiz_id, score, created_at")
+        .in("quiz_id", quizIds)
+        .order("created_at", { ascending: false });
+
+      if (attemptsError) {
+        console.error("Error fetching attempts:", attemptsError);
+      } else {
+        setAttempts(attemptsData || []);
+      }
+
+      setLoading(false);
+    };
+
+    fetchQuizzes();
+  }, []);
+
+  const quizCards = useMemo<QuizCard[]>(() => {
+    const latestAttemptByQuiz = new Map<string, AttemptRow>();
+    for (const attempt of attempts) {
+      if (!latestAttemptByQuiz.has(attempt.quiz_id)) {
+        latestAttemptByQuiz.set(attempt.quiz_id, attempt);
+      }
+    }
+
+    return quizzes.map((quiz) => {
+      const latestAttempt = latestAttemptByQuiz.get(quiz.id);
+      const score = latestAttempt?.score ?? null;
+      const status: QuizCard["status"] =
+        score === null ? "recommended" : score < 60 ? "needs_review" : "completed";
+      const questionsCount = quiz.questions?.length ?? 0;
+      const estimatedMinutes = Math.max(3, Math.ceil(questionsCount * 1.5));
+
+      return {
+        id: quiz.id,
+        title: quiz.title,
+        status,
+        score,
+        time: `${estimatedMinutes} min`,
+        questions: questionsCount,
+      };
+    });
+  }, [quizzes, attempts]);
+
   return (
     <div className="flex flex-col gap-8 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-full">
       
@@ -32,8 +121,15 @@ export default function Quizzes() {
       {/* Quiz List */}
       <div>
         <h3 className="text-xl font-bold text-gray-900 mb-4">Cuestionarios por Tema</h3>
+        {loading ? (
+          <div className="text-sm text-gray-500">Cargando cuestionarios...</div>
+        ) : quizCards.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-gray-500">
+            Aún no tienes quizzes generados. Ve a un resumen y crea tu primer quiz.
+          </div>
+        ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockQuizzes.map((quiz) => (
+          {quizCards.map((quiz) => (
             <motion.div
               key={quiz.id}
               whileHover={{ y: -4 }}
@@ -100,6 +196,7 @@ export default function Quizzes() {
             </motion.div>
           ))}
         </div>
+        )}
       </div>
 
     </div>

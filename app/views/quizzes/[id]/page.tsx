@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -13,48 +13,93 @@ import {
 } from "lucide-react";
 import { cn } from "../../../components/ui/utils";
 import Link from "next/link";
+import { createClient } from "@/app/utils/supabase/client";
 
-const mockQuizData = {
-  title: "Mecánica de la Respiración Celular",
-  questions: [
-    {
-      id: 1,
-      text: "¿Qué molécula es conocida como la 'moneda energética' de la célula?",
-      options: ["Glucosa", "ATP", "NADH", "Piruvato"],
-      correctIndex: 1,
-      explanation:
-        "El ATP (Trifosfato de adenosina) almacena y libera energía para los procesos celulares. Actúa como una batería recargable.",
-      reference: "Concepto de ATP en Resumen",
-    },
-    {
-      id: 2,
-      text: "¿Dónde ocurre la glucólisis?",
-      options: [
-        "Matriz mitocondrial",
-        "Núcleo",
-        "Citoplasma",
-        "Membrana mitocondrial interna",
-      ],
-      correctIndex: 2,
-      explanation:
-        "La glucólisis es el primer paso de la respiración celular y ocurre en el citoplasma, rompiendo la glucosa en piruvato.",
-      reference: "Las Tres Etapas > Glucólisis",
-    },
-  ],
+type OptionRow = {
+  id: string;
+  option_text: string;
+  is_correct: boolean;
+};
+
+type QuestionRow = {
+  id: string;
+  question_text: string;
+  explanation: string | null;
+  options: OptionRow[] | null;
+};
+
+type QuizData = {
+  id: string;
+  title: string;
+  questions: QuestionRow[] | null;
 };
 
 export default function QuizEngine() {
   const { id } = useParams();
   const router = useRouter();
+  const [quiz, setQuiz] = useState<QuizData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [score, setScore] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [attemptSaved, setAttemptSaved] = useState(false);
 
-  const question = mockQuizData.questions[currentQIndex];
-  const totalQs = mockQuizData.questions.length;
-  const isCorrect = selectedOption === question.correctIndex;
+  useEffect(() => {
+    const fetchQuiz = async () => {
+      if (!id) return;
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("quizzes")
+        .select("id, title, questions(id, question_text, explanation, options(id, option_text, is_correct))")
+        .eq("id", id)
+        .single();
+
+      if (error || !data) {
+        console.error("Error fetching quiz:", error);
+        setLoadError("No se pudo cargar el quiz");
+      } else {
+        setQuiz(data);
+      }
+
+      setLoading(false);
+    };
+
+    fetchQuiz();
+  }, [id]);
+
+  const normalizedQuestions = useMemo(() => {
+    const questions = quiz?.questions || [];
+    return questions
+      .map((question) => {
+        const options = [...(question.options || [])];
+        const correctIndex = options.findIndex((option) => option.is_correct);
+        if (options.length !== 4 || correctIndex < 0) return null;
+        return {
+          id: question.id,
+          text: question.question_text,
+          options: options.map((option) => option.option_text),
+          correctIndex,
+          explanation: question.explanation || "Revisa el resumen para reforzar este concepto.",
+          reference: "Resumen asociado",
+        };
+      })
+      .filter(Boolean) as Array<{
+      id: string;
+      text: string;
+      options: string[];
+      correctIndex: number;
+      explanation: string;
+      reference: string;
+    }>;
+  }, [quiz]);
+
+  const question = normalizedQuestions[currentQIndex];
+  const totalQs = normalizedQuestions.length;
+  const isCorrect = question ? selectedOption === question.correctIndex : false;
 
   const handleSelect = (index: number) => {
     if (showFeedback) return;
@@ -74,6 +119,56 @@ export default function QuizEngine() {
       setIsFinished(true);
     }
   };
+
+  useEffect(() => {
+    const saveAttempt = async () => {
+      if (!isFinished || !quiz?.id || attemptSaved || totalQs === 0) return;
+
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const finalScore = Number(((score / totalQs) * 100).toFixed(2));
+      const { error } = await supabase.from("quiz_attempts").insert({
+        quiz_id: quiz.id,
+        user_id: user.id,
+        score: finalScore,
+      });
+
+      if (error) {
+        console.error("Error saving quiz attempt:", error);
+        return;
+      }
+
+      setAttemptSaved(true);
+    };
+
+    saveAttempt();
+  }, [attemptSaved, isFinished, quiz?.id, score, totalQs]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen w-full bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-gray-600 font-medium">Cargando quiz...</p>
+      </div>
+    );
+  }
+
+  if (loadError || !quiz || normalizedQuestions.length === 0) {
+    return (
+      <div className="min-h-screen w-full bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-gray-900 font-semibold mb-4">{loadError || "Quiz no disponible"}</p>
+        <button
+          onClick={() => router.push("/views/quizzes")}
+          className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+        >
+          Volver a quizzes
+        </button>
+      </div>
+    );
+  }
 
   if (isFinished) {
     return (
@@ -108,7 +203,7 @@ export default function QuizEngine() {
               </h3>
               <p className="text-indigo-800/80 text-sm leading-relaxed">
                 Basado en tus respuestas, te recomendamos repasar la sección
-                "Proceso de Glucólisis" en tus notas antes de avanzar.
+                &quot;Proceso de Glucólisis&quot; en tus notas antes de avanzar.
               </p>
               <Link
                 href="/views/summaries"
@@ -168,9 +263,13 @@ export default function QuizEngine() {
             transition={{ duration: 0.4, type: "spring", bounce: 0 }}
             className="w-full flex flex-col items-center"
           >
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 text-center mb-8 sm:mb-12 leading-tight tracking-tight max-w-2xl">
-              {question.text}
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 text-center mb-3 leading-tight tracking-tight max-w-2xl">
+              {quiz.title}
             </h2>
+            <p className="text-sm text-gray-500 mb-8 sm:mb-12">Pregunta {currentQIndex + 1}</p>
+            <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 text-center mb-8 sm:mb-12 leading-tight tracking-tight max-w-2xl">
+              {question.text}
+            </h3>
 
             <div className="space-y-3 sm:space-y-4 w-full max-w-2xl">
               {question.options.map((option, index) => {
