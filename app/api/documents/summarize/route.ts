@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/app/utils/supabase/server";
 import { cookies } from "next/headers";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 import path from "path";
 import { pathToFileURL } from "url";
@@ -13,6 +14,26 @@ const workerPath = path.join(
   "node_modules/pdf-parse/dist/pdf-parse/esm/pdf.worker.mjs",
 );
 PDFParse.setWorker(pathToFileURL(workerPath).href);
+
+function fileExtension(file: File): string {
+  return file.name.split(".").pop()?.toLowerCase() ?? "";
+}
+
+/** .docx es un ZIP (firma PK\x03\x04) */
+function looksLikeDocxZip(buffer: Buffer): boolean {
+  return (
+    buffer.length >= 4 &&
+    buffer[0] === 0x50 &&
+    buffer[1] === 0x4b &&
+    buffer[2] === 0x03 &&
+    buffer[3] === 0x04
+  );
+}
+
+type ApiErrorLike = {
+  status?: number;
+  message?: string;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -60,18 +81,71 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Extract text from PDF
+    // 3. Extract text (PDF / Word / plain text)
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    
+    const ext = fileExtension(file);
+    const mime = file.type;
+
     let text = "";
-    if (file.type === "application/pdf") {
+
+    const isPdf = ext === "pdf" || mime === "application/pdf";
+    const isDocx =
+      ext === "docx" ||
+      mime === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+      (looksLikeDocxZip(buffer) &&
+        (mime === "" ||
+          mime === "application/octet-stream" ||
+          mime === "application/zip"));
+    const isLegacyDoc = ext === "doc" || mime === "application/msword";
+    const isTxt = ext === "txt" || mime === "text/plain";
+
+    if (isPdf) {
       const parser = new PDFParse({ data: buffer });
       const result = await parser.getText();
       text = result.text;
       await parser.destroy();
-    } else {
+    } else if (isDocx) {
+      try {
+        const { value, messages } = await mammoth.extractRawText({ buffer });
+        text = value;
+        if (messages?.length) {
+          console.warn("mammoth extractRawText messages:", messages);
+        }
+      } catch (mammothError) {
+        console.error("mammoth extractRawText failed:", mammothError);
+        return NextResponse.json(
+          {
+            error:
+              "No se pudo leer el contenido del archivo Word. Si es .xlsx u otro formato, exporta a PDF o .docx.",
+          },
+          { status: 422 },
+        );
+      }
+    } else if (isLegacyDoc) {
+      return NextResponse.json(
+        {
+          error:
+            "El formato Word antiguo (.doc) no se puede leer aquí. Abre el archivo en Word y guárdalo como .docx o PDF, luego vuelve a subirlo.",
+        },
+        { status: 422 },
+      );
+    } else if (isTxt) {
       text = buffer.toString("utf-8");
+    } else {
+      // Fallback: treat as plain text only if it does not look like binary
+      const asUtf8 = buffer.toString("utf-8");
+      const controlChars = (asUtf8.match(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g) ?? []).length;
+      if (controlChars > asUtf8.length * 0.02 && asUtf8.length > 200) {
+        return NextResponse.json(
+          {
+            error:
+              "No se pudo leer el contenido del archivo (posible binario). Usa PDF, .docx o .txt.",
+          },
+          { status: 422 },
+        );
+      }
+      text = asUtf8;
     }
 
     if (!text || text.trim().length === 0) {
@@ -118,15 +192,18 @@ export async function POST(req: NextRequest) {
     try {
       // Try primary model
       summaryJson = await trySummarize("gemini-2.5-flash");
-    } catch (primaryError: any) {
-      if (primaryError.status === 429) {
+    } catch (primaryError: unknown) {
+      const typedPrimary = primaryError as ApiErrorLike;
+      if (typedPrimary.status === 429) {
         console.warn("Gemini 2.0 Flash quota exceeded, trying 1.5 Flash fallback...");
         try {
           // Try fallback model
           summaryJson = await trySummarize("gemini-2.5-flash-lite");
-        } catch (fallbackError: any) {
+        } catch (fallbackError: unknown) {
+          const typedFallback = fallbackError as ApiErrorLike;
           console.error("Gemini fallbacks failed:", fallbackError);
-          const isQuota = fallbackError.status === 429 || fallbackError.message?.includes("quota");
+          const isQuota =
+            typedFallback.status === 429 || typedFallback.message?.includes("quota");
           return NextResponse.json({ 
             error: isQuota 
               ? "Se ha agotado la cuota gratuita de la IA. Por favor, intenta de nuevo en unos minutos." 
@@ -178,8 +255,12 @@ export async function POST(req: NextRequest) {
       documentId: docData.id
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Summarization API error:", error);
-    return NextResponse.json({ error: error.message || "Error interno del servidor" }, { status: 500 });
+    const message =
+      error instanceof Error
+        ? error.message
+        : (error as ApiErrorLike).message || "Error interno del servidor";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
