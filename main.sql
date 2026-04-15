@@ -34,6 +34,7 @@ CREATE TABLE public.progress (
 CREATE TABLE public.quizzes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     document_id UUID REFERENCES public.documents(id) ON DELETE SET NULL,
+    summary_id UUID REFERENCES public.summaries(id) ON DELETE SET NULL,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -145,4 +146,11 @@ CREATE INDEX idx_documents_user_id ON public.documents(user_id);
 CREATE INDEX idx_summaries_user_id ON public.summaries(user_id);
 CREATE INDEX idx_summaries_document_id ON public.summaries(document_id);
 CREATE INDEX idx_quizzes_user_id ON public.quizzes(user_id);
+CREATE INDEX idx_quizzes_summary_id ON public.quizzes(summary_id);
+CREATE UNIQUE INDEX idx_quizzes_summary_id_unique ON public.quizzes (summary_id) WHERE summary_id IS NOT NULL;
 CREATE INDEX idx_quiz_attempts_user_id ON public.quiz_attempts(user_id);
+
+-- Existing database: run once if quizzes already exists without summary_id
+-- ALTER TABLE public.quizzes ADD COLUMN IF NOT EXISTS summary_id UUID REFERENCES public.summaries(id) ON DELETE SET NULL;
+-- CREATE INDEX IF NOT EXISTS idx_quizzes_summary_id ON public.quizzes(summary_id);
+-- CREATE UNIQUE INDEX IF NOT EXISTS idx_quizzes_summary_id_unique ON public.quizzes (summary_id) WHERE summary_id IS NOT NULL;
