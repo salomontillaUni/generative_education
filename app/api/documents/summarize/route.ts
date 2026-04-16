@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
     let summaryJson;
     try {
       // Try primary model
-      summaryJson = await trySummarize("gemini-2.5-flash");
+      summaryJson = await trySummarize("gemini-2.5-flash-lite");
     } catch (primaryError: unknown) {
       const typedPrimary = primaryError as ApiErrorLike;
       if (typedPrimary.status === 429) {

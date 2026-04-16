@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
 
     let generatedQuiz: GeneratedQuiz;
     try {
-      generatedQuiz = await tryGenerateQuiz("gemini-2.5-flash");
+      generatedQuiz = await tryGenerateQuiz("gemini-2.5-flash-lite");
     } catch (primaryError: unknown) {
       const typedPrimaryError = primaryError as ApiErrorLike;
       if (typedPrimaryError?.status === 429) {
